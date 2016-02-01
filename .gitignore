@@ -1,0 +1,14 @@
+# -*- mode: gitignore; -*-
+# Ignore vim temporary files
+*~
+# Ignore vim swap files
+# http://vimdoc.sourceforge.net/htmldoc/recover.html
+.*.s??
+
+# Ignore Emacs temporary and autosave files
+\#*\#
+
+# Ignore the generated presentation files
+*.html
+*.pdf
+*~

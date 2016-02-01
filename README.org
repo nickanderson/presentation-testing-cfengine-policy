@@ -1,0 +1,25 @@
+* Testing CFEngine Policy
+
+This training material uses [[https://github.com/adamzap/landslide][landslide]] to build the slides used with
+the [[https://github.com/akrabat/avalanche][avalanche]] theme. You need to install landslide before trying to
+build this deck.
+
+To generate the slide deck simply run
+
+#+begin_src sh
+make
+#+end_src
+
+By default both dark and light versions of the presentation are
+generated.
+
+** Known Issues
+- Examples do not always fit on the screen
+- PDF is quite ugly with many things cut off
+
+** Contribution Guidance
+- Example policy should go into examples directory
+- Examples should be self-contained or designed for use with
+  services_autorun
+- When modifying the way things look use themes/*.css dont alter
+  upstream themes
