@@ -314,9 +314,9 @@ Other ways to run a test:
 
 ** CFEngine Core Examples with test support
 - [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf][Example with test support]]
-   Optional [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L23#L41][prep]] section to prepare the environment for testing.
-  - Required [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L43#L64][cfengine3]] section containing policy to excercise the test
-  - Required [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L60#L72][example_output]]
+   Optional [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L23#L41][=prep=]] section to prepare the environment for testing.
+  - Required [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L43#L64][=cfengine3=]] section containing policy to excercise the test
+  - Required [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L60#L72][=example_output=]]
 - [[https://raw.githubusercontent.com/cfengine/documentation/master/reference/functions/readintrealstringlist.markdown][Example doc usage]]
 - [[https://docs.cfengine.com/latest/reference-functions-readintrealstringlist.html][Example doc result]]
 
