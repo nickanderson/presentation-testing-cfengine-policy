@@ -1,0 +1,418 @@
+#+Title: Testing CFEngine Policy
+#+Author: Nick Anderson
+#+Email: nick@cmdln.org
+#+REVEAL_ROOT: file:///home/nickanderson/src/reveal.js/
+#+OPTIONS: reveal_center:t reveal_progress:t reveal_history:nil reveal_control:t
+#+OPTIONS: reveal_rolling_links:t reveal_keyboard:t reveal_overview:t num:nil
+#+OPTIONS: reveal_width:1200 reveal_height:800
+# The TOC is a bit much for a slide show IMHO
+#+OPTIONS: toc:nil
+#+REVEAL_MARGIN: 0.1
+#+REVEAL_MIN_SCALE: 0.5
+#+REVEAL_MAX_SCALE: 2.5
+# Available Transitions: default|cube|page|concave|zoom|linear|fade|none.
+#+REVEAL_TRANS: fade
+#+REVEAL_THEME: white 
+# ?? Guess this flattens up to x levels deep
+#+REVEAL_HLEVEL: 1
+#+REVEAL_HEAD_PREAMBLE: <meta name=description" content=How to test cfengine policy">
+#+REVEAL_POSTAMBLE: <p> Created by Nick Anderson. </p>
+#+REVEAL_PLUGINS: (markdown notes)
+
+
+* Fork me on Github!
+
+https://github.com/nickanderson/presentation-testing-cfengine-policy
+
+* Introductions
+
+** My name is Nick.
+- Wife, 2 kids, and a dog
+- Sysadmin/Infrastructure Engineer
+- You can find me online
+  - [[mailto:nick@cmdln.org][nick@cmdln.org]] | [[mailto:nick.anderson@cfengine.com][nick.anderson@cfengine.com]]
+  - [[https://twitter.com/cmdln_][twitter: @cmdln_]]
+  - [[http://www.cmdln.org][cmdln.org]]
+  - [[https://linkedin.com/in/hithisisnick][linkedin.com/in/hithisisnick]]
+
+*How about you?*
+
+#+BEGIN_NOTES
+I've worked in a wide variety of environments.
+- E-commerce
+- Large Enterprise (Motorola)
+- High Performance Computing
+- But always seem to work close with developers
+#+END_NOTES
+
+* Why Test?
+
+#+BEGIN_QUOTE
+  Implementations are ephemeral. Documented reasoning is priceless. 
+    -- Mark Burgess
+#+END_QUOTE
+
+- *Inspect what you expect*
+  - Prove policy behaves as expected
+  - Catch what you can as early as possible
+
+#+BEGIN_NOTES
+  https://landing.google.com/sre/book/chapters/foreword.html
+#+END_NOTES
+* Who is testing CFEngine Policy?
+
+- *CFEngine:* [[https://github.com/cfengine/core/tree/master/examples][Documentation Examples]], [[https://github.com/cfengine/core/tree/master/tests/acceptance][Core acceptance tests]], [[https://github.com/cfengine/masterfiles/tree/master/tests/acceptance][MPF acceptance
+  tests]], [[https://github.com/cfengine/masterfiles/blob/master/lib/testing.cf][Standard library utility bundles]]
+- *Evolve Thinking:* [[https://github.com/evolvethinking/evolve_cfengine_freelib/tree/master/t][Evolve Thinking Free library]]
+- *Normation:* [[https://github.com/Normation/ncf/tree/master/tests/acceptance][NCF]]
+- *Others:* [[https://github.com/nmische/kitchen-cfengine][CFEngine Provisioner for Test Kitchen]], [[http://syslog.me/2014/08/30/test-dummies-on-sale/][Marco Marongiu]], [[https://vimeo.com/31957100][Jarle
+  Bjørgeengen]]
+
+* Core Acceptance Tests
+
+Found in [[https://github.com/cfengine/core/tree/master/tests/acceptance][tests/acceptance]]
+
+** The most simple test
+
+This test will fail unless the system has the =linux= class defined.
+
+#+BEGIN_SRC cfengine3 :exports both :wrap EXAMPLE
+  bundle agent main
+  {
+    classes:
+      "pass" expression => "linux";
+
+    reports:
+      pass::
+        "$(this.promise_filename) Pass";
+
+      !pass::
+        "$(this.promise_filename) FAIL";
+  }
+#+END_SRC
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+R: /home/nickanderson/src/presentations/testing-cfengine-policy/cfengine3-16585LMB Pass
+#+END_EXAMPLE
+
+** Bundle Meta Info
+ 
+Controls interpretation of a test result
+
+#+ATTR_REVEAL: :frag (appear)
+  - Use in a bundle named =test= 
+  - Requires inclusion of =default.cf.sub= and
+    =default($(this.promise_filename))= for the bundlesequence.
+  - 
+    #+BEGIN_SRC cfengine3
+      body common control
+      {
+          inputs => { "../default.cf.sub" };
+          bundlesequence  => { default("$(this.promise_filename)") };
+      }
+    #+END_SRC
+*** Noteable bundle meta vars
+
+#+ATTR_REVEAL: :frag (appear)
+- =description= :: Describes what is being tested.
+- =test_skip_unsupported= :: Skips a test because it makes no sense on that
+     platform (e.g. symbolic links on Windows).
+- =test_skip_needs_work= :: Skips a test because the test itself is not adapted
+     to the platform (even if the functionality exists).
+- =*test_soft_fail= :: Requires meta tag representing the associated issue ID. Runs the test, but failure does not fail the build. *Good
+     for incoming bug reports*.
+- =*test_suppress_fail= :: Failures are counted, but won't block the build.
+
+=*= *Requires meta tag representing the associated issue ID*
+
+#+BEGIN_NOTES
+- test_suppress_fail :: Use this when there is a real failure, but it is
+     acceptable for the time being. This variable requires a meta tag on the
+     variable set to =CFE-<number>=, where =<number>= is a [[https://tracker.mender.io/projects/CFE/issues][Jira issue number]]
+     There is a subtle difference between the two. Soft failures will not be
+     reported as a failure in the XML output, and is appropriate for test cases
+     that document incoming bug reports. Suppressed failures will count as a
+     failure, but it won't block the build, and is appropriate for regressions
+     or bad test failures.
+#+END_NOTES
+
+** Bundle Meta Info Example
+
+#+BEGIN_SRC cfengine3
+    bundle agent test
+    {
+      meta:
+        "description" string => "This tests ....";
+        "test_soft_fail"
+          string => "any", # Class expression describing platforms (hard classes)
+          meta => { "CFE-XXX" };
+    }
+#+END_SRC
+
+** Staged Tests
+- Not expected to pass, and skipped unless running =testall= with =--staging=
+- Can be placed in staging directory (not run automatically)
+- Now preferring the use of bundle meta info to not fail the build (run
+  automatically)
+  - But do not fail the build in our CI system
+
+** Unsafe Tests
+- Modify the system outside of =/tmp=
+- Should be placed in a directory named =unsafe=
+- Can be run with =--unsafe= option to =testall=
+
+** Parallel and Serial Tests
+  - Run =n= tests in parallel ~./testall -jobs=[n]~
+  - Tests with =serial= in the name are run in strict lexical order
+
+** Timed Tests
+- Allows tests to wait for extended period of time
+- Use =dcs_wait( $(this.promise_filename), <seconds>)=
+
+#+BEGIN_NOTES
+The test suite will keep track of time, and run other tests while your test is
+waiting. Some things to look out for though:
+
+- During the wait time, your test is no longer running, so you cannot for
+  example do polling.
+- You cannot leave daemons running while waiting, because it may interfere with
+  other tests. If you need that you will have to wait the traditional way, by
+  introducing sleeps in the policy itself.
+- The timing is not guaranteed to be accurate to the second. The test will be
+  resumed as soon as the current test has finished running, but if it takes a
+  long time, this will add to the wait time.
+#+END_NOTES
+
+** Fault Tests
+- Are expected to fault, for example invalid syntax
+- Should have suffix of =.x.cf=
+ 
+#+BEGIN_NOTES
+https://github.com/cfengine/core/pull/2777
+#+END_NOTES 
+** Network tests
+- Use external networked resources
+- Should be placed in a directory named '=network='
+- Can be disaled with '=--no-network=' option to =testall=
+
+#+BEGIN_NOTES
+For example =url_get= fetches a file from cfengine.com
+#+END_NOTES
+** Running core acceptance test
+
+#+BEGIN_SRC sh
+  ./testall --bindir=/var/cfengine/bin
+#+END_SRC
+
+* Writing a core acceptance test
+
+#+ATTR_REVEAL: :frag (appear)
+- Start with self contained policy to excercise and validate the behaviour.
+- Include =default.cf.sub= in =body common control=
+- Use =default("$(this.promise_filename)")= for the =bundlesequence= in =body
+  common control=
+- Split test into approrpirate bundles
+
+#+BEGIN_NOTES
+Tests will automatically run the following bundles if present:
+
+- =init=
+- =test=
+- =check=
+- =destroy= (=$(G.testdir)= is automatically cleaned up by =testall=)
+
+- *NOTE:* Since the class =ok= is used in most tests, never create a persistent
+class called =ok= in any test. Persistent classes are cleaned up between test
+runs, but better safe than sorry.
+
+Output =$(this.promise_filename) Pass= for passing and
+=$(this.promise_filename) FAIL= for failing.
+#+END_NOTES
+
+** Simple example test
+
+#+BEGIN_SRC cfengine3
+  body common control
+  {
+      inputs => { "../default.cf.sub" };
+      bundlesequence  => { default("$(this.promise_filename)") };
+  }
+  bundle agent init
+  {
+    files:
+      "$(G.testfile)"
+        delete => tidy;
+  }
+  bundle agent test
+  {
+    meta:
+      "description" string => "Test that a file gets created";
+
+    files:
+      "$(G.testfile)"
+        create => "true",
+        classes => scoped_classes_generic("namespace", "testfile");
+  }
+  bundle agent check
+  {
+    methods:
+      "" usebundle => dcs_passif( "testfile_repaired", $(this.promise_filename) );
+  }
+#+END_SRC
+** Running the test
+
+#+BEGIN_EXAMPLE
+  $ ./testall example.cf
+  ======================================================================
+  Testsuite started at 2016-01-31 17:06:40
+  ----------------------------------------------------------------------
+  Total tests: 1
+  
+  CRASHING_TESTS: enabled
+  NETWORK_TESTS: enabled
+  STAGING_TESTS: disabled
+  UNSAFE_TESTS: disabled
+  LIBXML2_TESTS: enabled
+  
+  ./example.cf Pass
+  
+  ======================================================================
+  Testsuite finished at 2016-01-31 17:06:41 (1 seconds)
+  
+  Passed tests:  1
+  Failed tests:  0
+  Skipped tests: 0
+  Soft failures: 0
+  Total tests:   1
+#+END_EXAMPLE
+
+#+BEGIN_NOTES
+Don't forget to build the agent first.
+
+- ~./autogen.sh~
+- ~make~
+
+Other ways to run a test:
+
+- ~./testall --agent=/var/cfengine/bin/cf-agent 01_vars/01_basic/sysvars.cf~
+- ~cf-agent -Kf --define AUTO,DEBUG ./01_vars/01_basic/sysvars.cf~
+
+#+END_NOTES
+
+* ...
+
+[[file:./images/but_wait_theres_more.jpg]]
+
+** Improve *documentation* and *testing* with test support for examples
+
+#+ATTR_HTML: :width 200px
+[[file:./images/buy_one_get_one_free.jpg]]
+
+[[file:./images/two_birds_one_stone.jpg]]
+
+
+** CFEngine Core Examples with test support
+- [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf][Example with test support]]
+   Optional [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L23#L41][prep]] section to prepare the environment for testing.
+  - Required [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L43#L64][cfengine3]] section containing policy to excercise the test
+  - Required [[https://github.com/cfengine/core/blob/master/examples/readintrealstringlist.cf#L60#L72][example_output]]
+- [[https://raw.githubusercontent.com/cfengine/documentation/master/reference/functions/readintrealstringlist.markdown][Example doc usage]]
+- [[https://docs.cfengine.com/latest/reference-functions-readintrealstringlist.html][Example doc result]]
+
+#+BEGIN_NOTES
+- Policies in =core/examples= that contain an =example_output= block are tested
+  from =core/tests/acceptance/04_examples=
+#+END_NOTES
+
+* Testing your own policies with TAP or JUnit
+
+- Utility bundles in [[https://docs.cfengine.com/docs/3.10/reference-masterfiles-policy-framework-lib-testing.html][=$(sys.libdir)/testing.cf=]]
+
+** Implementing a simple test with TAP and JUnit output
+
+#+BEGIN_SRC cfengine3 :exports both :wrap EXAMPLE
+body file control { inputs => { "$(sys.libdir)/stdlib.cf", "$(sys.libdir)/testing.cf" }; }
+
+bundle agent main
+{
+  classes:
+    "BUNDLE_CLASS" expression => "any";
+
+  methods:
+    "Check namespace scoped class"
+      usebundle => testing_ok_if("NAMESPACE_CLASS",
+                                 "Checking to see if 'NAMESPACE_CLASS' is defined",
+                                 "'NAMESPACE_CLASS' is *not* defined.", "Extra trace info", "TAP");
+
+    "Check bundle scoped class"
+      inherit => "true",
+      usebundle => testing_ok_if("BUNDLE_CLASS",
+                                 "Checking to see if 'BUNDLE_CLASS' is defined",
+                                 "'BUNDLE_CLASS' is *not* defined.", "Extra trace info", "TAP");
+
+    "TAP Summary Report"
+      usebundle => testing_tap_report("/tmp/test_result.txt");
+
+    "JUnit Summary Report"
+      usebundle => testing_junit_report("/tmp/test_result.xml");
+  reports:
+    "Content of /tmp/test_result.txt:$(const.n)"
+      printfile => cat("/tmp/test_result.txt");
+
+    "Content of /tmp/test_result.xml:$(const.n)"
+      printfile => cat("/tmp/test_result.xml");
+}
+#+END_SRC
+
+#+REVEAL: split
+
+#+RESULTS:
+#+BEGIN_EXAMPLE
+R: 
+not ok Checking to see if 'NAMESPACE_CLASS' is defined
+R: 
+ok Checking to see if 'BUNDLE_CLASS' is defined
+R: Content of /tmp/test_result.txt:
+
+R: 1..2
+R: 1 not ok Checking to see if 'NAMESPACE_CLASS' is defined
+R: 2 ok Checking to see if 'BUNDLE_CLASS' is defined
+R: Content of /tmp/test_result.xml:
+
+R: <?xml version="1.0" encoding="UTF-8"?>
+R: <testsuite tests="2" failures="1" timestamp="2017-01-20T13:43:26">
+R: 
+R:   <testcase name="BUNDLE_CLASS">Checking to see if 'BUNDLE_CLASS' is defined</testcase>
+R: 
+R:   <testcase name="NAMESPACE_CLASS_failed">
+R:     <failure message="'NAMESPACE_CLASS' is *not* defined.">Checking to see if 'NAMESPACE_CLASS' is definedExtra trace info</failure>
+R:   </testcase>
+R: 
+R: 
+R: 
+R: </testsuite>
+R: 
+R: <!-- not implemented (yet):
+R: 1) errors: <error message="my error message">my crash report</error>
+R: 2) STDOUT: <system-out>my STDOUT dump</system-out>
+R: 3) STDERR: <system-err>my STDERR dump</system-err>
+R:  -->
+#+END_EXAMPLE
+** Implementing a test for nickanderson/file-perms
+
+* Additional Resources
+In no particular order:
+
+- [[https://cfengine.com/company/blog-detail/behind-the-scenes-how-do-we-test-cfengine/][Behind the scenes: How do we test CFEngine]]
+- [[http://syslog.me/2014/08/30/test-dummies-on-sale/][Test dummies on sale!]]
+- [[http://comments.gmane.org/gmane.comp.sysutils.cfengine.general/17886][Policy testing using TAP]]
+- [[http://evolvethinking.com/testing-cfengine-policy-by-counting-classes/][Testing CFEngine policy by counting classes]]
+- [[http://amid.fish/docker-cfengine-servers/][CFEngine Policy Servers with Docker]]
+- [[https://www.youtube.com/watch?v=0bPzEl3TVoM][Using Vagrant with CFEngine for Development and Testing]]
+- [[https://docs.cfengine.com/lts/guide-installation-and-configuration-general-installation-installation-enterprise-vagrant.html][CFEngine Enterprise Vagrant Environment]]
+- [[https://www.normation.com/en/blog/2013/09/24/vagrant-virtual-machine-provisioning-made-easy/][Vagrant: Virtual machine provisioning made easy]]
+* Masterfiles Acceptance Tests
+https://github.com/cfengine/masterfiles/pull/860/files
+
+
