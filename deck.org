@@ -399,7 +399,6 @@ R: 2) STDOUT: <system-out>my STDOUT dump</system-out>
 R: 3) STDERR: <system-err>my STDERR dump</system-err>
 R:  -->
 #+END_EXAMPLE
-** Implementing a test for nickanderson/file-perms
 
 * Additional Resources
 In no particular order:
