@@ -1,0 +1,42 @@
+# examples/00-20-example-create_file-test.cf
+# We skip defining bundle agent init beacause we don't need it.
+# Place this test in tests/acceptance/10_files/01_create/files_create_true.cf
+
+body common control
+{
+      inputs => { "../../default.cf.sub" };
+      bundlesequence  => { default("$(this.promise_filename)") };
+}
+
+bundle agent test
+{
+  meta:
+    "description"
+      string => "Test that files can be created";
+
+  files:
+      "$(G.testfile)"
+        create => "true";
+}
+
+bundle agent check
+{
+  classes:
+    "pass" expression => fileexists( $(G.testfile) );
+  
+  reports:
+    pass::
+      "$(this.promise_filename) Pass";
+
+    !pass::
+      "$(this.promise_filename) FAIL";
+
+
+  ## Alternatively leverage a bundle from the test framework.
+  ## Remove the classes and reports above and replace with the following
+
+  # methods:
+  #  "Pass if $(G.testfile) exists"
+  #    usebundle => dcs_passif_fileexists( $(G.testfile), $(this.promise_filename) );
+}
+
